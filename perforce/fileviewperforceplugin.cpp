@@ -121,7 +121,7 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
     m_versionInfoHashDir.clear();
 
     QProcess process;
-    process.start ( "p4 -d\"" % directory % "\" fstat -T\"clientFile,headRev,haveRev,action\" ..." );
+    process.start ( "p4 -d\"" % directory % "\" fstat -T\"clientFile,headRev,haveRev,action,unresolved\" ..." );
     while ( process.waitForReadyRead() ) {
         char buffer[1024];
         while ( true )  {
@@ -131,6 +131,7 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
             //    "... headRev " followed by a revision number
             //    "... haveRev "followed by a revision number
             //    "... action " followed by an action
+            //    "... unresolved"
             // The first line in mandatory, the remaning lines can be missing,
             // the order however is constant
 
@@ -151,10 +152,18 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
                 break;
             }
 
+            static const int clientFileStartPos = sizeof ( "... clientFile" );
+            const int lengthFileName = strings.first().length() - clientFileStartPos -1;
+            QString filePath = strings.first().mid ( clientFileStartPos, lengthFileName );
+
             QString headRev;
             QString haveRev;
             QString action;
 
+            if ( strings.last().startsWith ( "... unresolved" ) ) {
+                updataFileVersion ( filePath, ConflictingVersion );
+                continue;
+            }
             if ( strings.last().startsWith ( "... action" ) ) {
                 static const int pos = sizeof ( "... action" );
                 int length = strings.last().length() - pos -1;
@@ -173,11 +182,6 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
 
             bool needsUpdate = ( haveRev != headRev );
 
-
-            static const int clientFileStartPos = sizeof ( "... clientFile" );
-            const int lengthFileName = strings.first().length() - clientFileStartPos -1;
-            QString filePath = strings.first().mid ( clientFileStartPos, lengthFileName );
-
             if ( action.isEmpty() ) {
                 if ( !needsUpdate ) {
                     updataFileVersion ( filePath, NormalVersion );
@@ -188,19 +192,19 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
                 updataFileVersion ( filePath, ConflictingVersion );
             } else  if ( action.isEmpty() ) {
                 updataFileVersion ( filePath, NormalVersion );
-            } else if ( action=="edit" ) {
+            } else if ( action=="edit" || action=="integrate" ) {
                 updataFileVersion ( filePath, LocallyModifiedVersion );
             } else if ( action=="add" || action=="move/add" || action=="import" || action=="branch" ) {
                 updataFileVersion ( filePath, AddedVersion );
             } else if ( action=="delete" || action=="move/delete" || action=="purge" ) {
                 updataFileVersion ( filePath, RemovedVersion );
-            } else if ( action=="integrate" || action=="archive" ) {
+            } else if ( action=="archive" ) {
                 updataFileVersion ( filePath, NormalVersion );
             } else {
                 kWarning() << "Unknown perforce file version: " << action;
                 updataFileVersion ( filePath, NormalVersion );
             }
-            // FIXME: check version of a action = {import, branch, integrate, archive}
+            // FIXME: check version of a action = {import, branch, archive}
         }
     }
 
