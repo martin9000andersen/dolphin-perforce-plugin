@@ -20,23 +20,13 @@
 #include "fileviewperforceplugin.h"
 
 #include <kaction.h>
-#include <kdemacros.h>
-#include <kdialog.h>
 #include <kfileitem.h>
 #include <kicon.h>
 #include <klocale.h>
-#include <krun.h>
-#include <kshell.h>
-#include <kvbox.h>
 #include <KUrl>
-#include <QLabel>
-#include <QPlainTextEdit>
 #include <QProcess>
 #include <QString>
-#include <QStringList>
-#include <QTextStream>
 #include <kdebug.h>
-#include <iostream>
 #include <QDirIterator>
 #include <QStringBuilder>
 
@@ -207,7 +197,7 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
             } else if ( action=="integrate" || action=="archive" ) {
                 updataFileVersion ( filePath, NormalVersion );
             } else {
-                kWarning() << "Unknown perforce file version: "<<action;
+                kWarning() << "Unknown perforce file version: " << action;
                 updataFileVersion ( filePath, NormalVersion );
             }
             // FIXME: check version of a action = {import, branch, integrate, archive}
