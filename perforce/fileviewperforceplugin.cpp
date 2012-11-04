@@ -38,6 +38,7 @@
 #include <kdebug.h>
 #include <iostream>
 #include <QDirIterator>
+#include <QStringBuilder>
 
 #include <KPluginFactory>
 #include <KPluginLoader>
@@ -130,13 +131,7 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
     m_versionInfoHashDir.clear();
 
     QProcess process;
-    process.start ( "p4 -d\""+directory+"\" fstat -T\"clientFile,headRev,haveRev,action\" ..." );
-//     QStringList arguments;
-//     arguments << QLatin1String("-d") << directory
-//               << QLatin1String("fstat")
-//               << QLatin1String("-T\'clientFile,action\'")
-//               << QLatin1String("...");
-//     process.start( QLatin1String("p4"), arguments );
+    process.start ( "p4 -d\"" % directory % "\" fstat -T\"clientFile,headRev,haveRev,action\" ..." );
     while ( process.waitForReadyRead() ) {
         char buffer[1024];
         while ( true )  {
