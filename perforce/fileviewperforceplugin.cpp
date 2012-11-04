@@ -129,18 +129,18 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
     m_versionInfoHash.clear();
     m_versionInfoHashDir.clear();
 
-    QProcess process;    
+    QProcess process;
     process.start ( "p4 -d\""+directory+"\" fstat -T\"clientFile,headRev,haveRev,action\" ..." );
 //     QStringList arguments;
 //     arguments << QLatin1String("-d") << directory
 //               << QLatin1String("fstat")
 //               << QLatin1String("-T\'clientFile,action\'")
 //               << QLatin1String("...");
-//     process.start( QLatin1String("p4"), arguments );    
+//     process.start( QLatin1String("p4"), arguments );
     while ( process.waitForReadyRead() ) {
         char buffer[1024];
         while ( true )  {
-            
+
             // strings contains uptil 4 lines in the format:
             //    "... clientFile " follower by a file path
             //    "... headRev " followed by a revision number
@@ -148,53 +148,51 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
             //    "... action " followed by an action
             // The first line in mandatory, the remaning lines can be missing,
             // the order however is constant
-            
+
             QStringList strings;
             bool failed = false;
             while ( true ) {
-                if ( process.readLine ( buffer, sizeof ( buffer ) )<=0 )
-                {
+                if ( process.readLine ( buffer, sizeof ( buffer ) ) <=0 ) {
                     failed = true;
                     break;
                 }
-                strings.append( buffer );
+                strings.append ( buffer );
                 if ( strings.last().length() < 3 ) {
                     strings.removeLast();
                     break;
                 }
             }
-            if ( strings.isEmpty() || failed )
-            {
+            if ( strings.isEmpty() || failed ) {
                 break;
             }
-            
+
             QString headRev;
             QString haveRev;
             QString action;
-            
-            if ( strings.last().startsWith("... action") ) {
+
+            if ( strings.last().startsWith ( "... action" ) ) {
                 static const int pos = sizeof ( "... action" );
                 int length = strings.last().length() - pos -1;
                 action = strings.takeLast().mid ( pos, length );
             }
-            if ( strings.last().startsWith("... haveRev") ) {
+            if ( strings.last().startsWith ( "... haveRev" ) ) {
                 static const int pos = sizeof ( "... haveRev" );
                 int length = strings.last().length() - pos -1;
                 haveRev = strings.takeLast().mid ( pos, length );
             }
-            if ( strings.last().startsWith("... headRev") ) {
+            if ( strings.last().startsWith ( "... headRev" ) ) {
                 static const int pos = sizeof ( "... headRev" );
                 int length = strings.last().length() - pos -1;
                 headRev = strings.takeLast().mid ( pos, length );
             }
-            
-            bool needsUpdate = (haveRev != headRev);
 
-            
+            bool needsUpdate = ( haveRev != headRev );
+
+
             static const int clientFileStartPos = sizeof ( "... clientFile" );
             const int lengthFileName = strings.first().length() - clientFileStartPos -1;
             QString filePath = strings.first().mid ( clientFileStartPos, lengthFileName );
-            
+
             if ( action.isEmpty() ) {
                 if ( !needsUpdate ) {
                     updataFileVersion ( filePath, NormalVersion );
@@ -216,13 +214,13 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
             } else {
                 kWarning() << "Unknown perforce file version: "<<action;
                 updataFileVersion ( filePath, NormalVersion );
-            }  
+            }
             // FIXME: check version of a action = {import, branch, integrate, archive}
         }
     }
 
     if ( ( process.exitCode() != 0 || process.exitStatus() != QProcess::NormalExit ) ) {
-        emit errorMessage ( QLatin1String("p4 error: ") + process.errorString() );
+        emit errorMessage ( QLatin1String ( "p4 error: " ) + process.errorString() );
         return false;
     }
     return true;
