@@ -121,7 +121,7 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
     m_versionInfoHashDir.clear();
 
     QProcess process;
-    process.start ( "p4 -d\"" % directory % "\" fstat -T\"clientFile,headRev,haveRev,action,unresolved\" ..." );
+    process.start ( "p4 -d\"" % directory % "\" fstat -T\"clientFile,headRev,haveRev,action,unresolved\" -F\"haveRev|(^haveRev&^(headAction=delete|headAction=move/delete|headAction=purge))\" ..." );
     while ( process.waitForReadyRead() ) {
         char buffer[1024];
         while ( true )  {
