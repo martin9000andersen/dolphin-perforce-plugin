@@ -161,7 +161,7 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
             QString action;
 
             if ( strings.last().startsWith ( "... unresolved" ) ) {
-                updataFileVersion ( filePath, ConflictingVersion );
+                updateFileVersion ( filePath, ConflictingVersion );
                 continue;
             }
             if ( strings.last().startsWith ( "... action" ) ) {
@@ -184,25 +184,25 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
 
             if ( action.isEmpty() ) {
                 if ( !needsUpdate ) {
-                    updataFileVersion ( filePath, NormalVersion );
+                    updateFileVersion ( filePath, NormalVersion );
                 } else {
-                    updataFileVersion ( filePath, UpdateRequiredVersion );
+                    updateFileVersion ( filePath, UpdateRequiredVersion );
                 }
             } else if ( needsUpdate ) {
-                updataFileVersion ( filePath, ConflictingVersion );
+                updateFileVersion ( filePath, ConflictingVersion );
             } else  if ( action.isEmpty() ) {
-                updataFileVersion ( filePath, NormalVersion );
+                updateFileVersion ( filePath, NormalVersion );
             } else if ( action=="edit" || action=="integrate" ) {
-                updataFileVersion ( filePath, LocallyModifiedVersion );
+                updateFileVersion ( filePath, LocallyModifiedVersion );
             } else if ( action=="add" || action=="move/add" || action=="import" || action=="branch" ) {
-                updataFileVersion ( filePath, AddedVersion );
+                updateFileVersion ( filePath, AddedVersion );
             } else if ( action=="delete" || action=="move/delete" || action=="purge" ) {
-                updataFileVersion ( filePath, RemovedVersion );
+                updateFileVersion ( filePath, RemovedVersion );
             } else if ( action=="archive" ) {
-                updataFileVersion ( filePath, NormalVersion );
+                updateFileVersion ( filePath, NormalVersion );
             } else {
                 kWarning() << "Unknown perforce file version: " << action;
-                updataFileVersion ( filePath, NormalVersion );
+                updateFileVersion ( filePath, NormalVersion );
             }
             // FIXME: check version of a action = {import, branch, archive}
         }
@@ -215,7 +215,7 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
     return true;
 }
 
-void FileViewPerforcePlugin::updataFileVersion ( const QString& filePath, ItemVersion version )
+void FileViewPerforcePlugin::updateFileVersion ( const QString& filePath, ItemVersion version )
 {
     m_versionInfoHash.insert ( filePath, version );
 
@@ -265,12 +265,15 @@ void FileViewPerforcePlugin::endRetrieval()
 KVersionControlPlugin2::ItemVersion FileViewPerforcePlugin::itemVersion ( const KFileItem& item ) const
 {
     const QString itemUrl = item.localPath();
-    if ( m_versionInfoHash.contains ( itemUrl ) ) {
-        return m_versionInfoHash.value ( itemUrl );
+    
+    QHash<QString, ItemVersion>::const_iterator it = m_versionInfoHash.find( itemUrl );
+    if ( it != m_versionInfoHash.end() ) {
+        return *it;
     }
 
-    if ( m_versionInfoHashDir.contains ( itemUrl ) ) {
-        return m_versionInfoHashDir.value ( itemUrl );
+    it = m_versionInfoHashDir.find( itemUrl );
+    if ( it != m_versionInfoHashDir.end() ) {
+        return *it;
     }
 
     return UnversionedVersion;
@@ -443,7 +446,7 @@ void FileViewPerforcePlugin::startPerforceCommandProcess()
         arguments << QLatin1String ( "-d" ) << item.localPath()
                   << m_command << m_arguments;
         if ( item.isDir() ) {
-            arguments << item.localPath().append ( "..." ); // add '...' to make the operation recurisive
+            arguments << item.localPath().append ( "..." );
         } else {
             arguments << item.localPath();
         }

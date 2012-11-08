@@ -71,8 +71,8 @@ private:
 
     void startPerforceCommandProcess();
 
-    void updataFileVersion( const QString& filePath, KVersionControlPlugin2::ItemVersion version );
-    
+    void updateFileVersion( const QString& filePath, KVersionControlPlugin2::ItemVersion version );
+
     QList<QAction*> directoryActions(const QString& directory) const;
 
 private:
@@ -85,7 +85,7 @@ private:
     QAction* m_removeAction;
     QAction* m_openForEditAction;
     QAction* m_revertAction;
-    QAction* m_revertUnchangedAction;   
+    QAction* m_revertUnchangedAction;
 
     QString m_command;
     QStringList m_arguments;
