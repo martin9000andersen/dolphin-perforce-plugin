@@ -122,90 +122,99 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
 
     QProcess process;
     process.start ( "p4 -d\"" % directory % "\" fstat -T\"clientFile,headRev,haveRev,action,unresolved\" -F\"haveRev|(^haveRev&^(headAction=delete|headAction=move/delete|headAction=purge))\" ..." );
-    while ( process.waitForReadyRead() ) {
+
+    // The output of this command are blocks of uptil 5 lines separated by a blanck line.
+    // The format of each block is:
+    //    "... clientFile " follower by the local file path
+    //    "... headRev " followed by the revision number of the local version of the file
+    //    "... haveRev "followed by a revision number of the latest revision on the server
+    //    "... action " followed by an action
+    //    "... unresolved"
+    // The first line in mandatory, the remaning lines can be missing,
+    // the order however is constant
+
+    if ( !process.waitForStarted() ) {
+        emit errorMessage ( QLatin1String ( "Could not start 'p4 fstat' command." ) );
+        return false;
+    }
+    QStringList strings;
+    while ( process.state() !=QProcess::NotRunning || !process.atEnd() ) {
+        if ( !process.canReadLine() ) {
+            process.waitForReadyRead();
+            continue;
+        }
+
         char buffer[1024];
-        while ( true )  {
+        if ( process.readLine ( buffer, sizeof ( buffer ) ) <= 0 ) {
+            emit errorMessage ( QLatin1String ( "Reading error Error while reading output from 'p4 fstat' command." ) );
+            break;
+        }
 
-            // strings contains uptil 4 lines in the format:
-            //    "... clientFile " follower by a file path
-            //    "... headRev " followed by a revision number
-            //    "... haveRev "followed by a revision number
-            //    "... action " followed by an action
-            //    "... unresolved"
-            // The first line in mandatory, the remaning lines can be missing,
-            // the order however is constant
+        strings.append ( buffer );
+        if ( strings.last() != QLatin1String ( "\n" ) ) {
+            continue;
+        }
+        strings.removeLast();
 
-            QStringList strings;
-            bool failed = false;
-            while ( true ) {
-                if ( process.readLine ( buffer, sizeof ( buffer ) ) <=0 ) {
-                    failed = true;
-                    break;
-                }
-                strings.append ( buffer );
-                if ( strings.last().length() < 3 ) {
-                    strings.removeLast();
-                    break;
-                }
-            }
-            if ( strings.isEmpty() || failed ) {
-                break;
-            }
+        if ( strings.isEmpty() ) {
+            emit errorMessage ( QLatin1String ( "Error while reading output from 'p4 fstat' command: only newline read." ) );
+            return false;
+        }
 
-            static const int clientFileStartPos = sizeof ( "... clientFile" );
-            const int lengthFileName = strings.first().length() - clientFileStartPos -1;
-            QString filePath = strings.first().mid ( clientFileStartPos, lengthFileName );
+        static const int clientFileStartPos = sizeof ( "... clientFile" );
+        const int lengthFileName = strings.first().length() - clientFileStartPos -1;
+        QString filePath = strings.first().mid ( clientFileStartPos, lengthFileName );
 
-            QString headRev;
-            QString haveRev;
-            QString action;
+        QString headRev;
+        QString haveRev;
+        QString action;
 
-            if ( strings.last().startsWith ( "... unresolved" ) ) {
-                updateFileVersion ( filePath, ConflictingVersion );
-                continue;
-            }
-            if ( strings.last().startsWith ( "... action" ) ) {
-                static const int pos = sizeof ( "... action" );
-                int length = strings.last().length() - pos -1;
-                action = strings.takeLast().mid ( pos, length );
-            }
-            if ( strings.last().startsWith ( "... haveRev" ) ) {
-                static const int pos = sizeof ( "... haveRev" );
-                int length = strings.last().length() - pos -1;
-                haveRev = strings.takeLast().mid ( pos, length );
-            }
-            if ( strings.last().startsWith ( "... headRev" ) ) {
-                static const int pos = sizeof ( "... headRev" );
-                int length = strings.last().length() - pos -1;
-                headRev = strings.takeLast().mid ( pos, length );
-            }
+        if ( strings.last().startsWith ( "... unresolved" ) ) {
+            updateFileVersion ( filePath, ConflictingVersion );
+            strings.clear();
+            continue;
+        }
+        if ( strings.last().startsWith ( "... action" ) ) {
+            static const int pos = sizeof ( "... action" );
+            int length = strings.last().length() - pos -1;
+            action = strings.takeLast().mid ( pos, length );
+        }
+        if ( strings.last().startsWith ( "... haveRev" ) ) {
+            static const int pos = sizeof ( "... haveRev" );
+            int length = strings.last().length() - pos -1;
+            haveRev = strings.takeLast().mid ( pos, length );
+        }
+        if ( strings.last().startsWith ( "... headRev" ) ) {
+            static const int pos = sizeof ( "... headRev" );
+            int length = strings.last().length() - pos -1;
+            headRev = strings.takeLast().mid ( pos, length );
+        }
 
-            bool needsUpdate = ( haveRev != headRev );
+        bool needsUpdate = ( haveRev != headRev );
 
-            if ( action.isEmpty() ) {
-                if ( !needsUpdate ) {
-                    updateFileVersion ( filePath, NormalVersion );
-                } else {
-                    updateFileVersion ( filePath, UpdateRequiredVersion );
-                }
-            } else if ( needsUpdate ) {
-                updateFileVersion ( filePath, ConflictingVersion );
-            } else  if ( action.isEmpty() ) {
-                updateFileVersion ( filePath, NormalVersion );
-            } else if ( action=="edit" || action=="integrate" ) {
-                updateFileVersion ( filePath, LocallyModifiedVersion );
-            } else if ( action=="add" || action=="move/add" || action=="import" || action=="branch" ) {
-                updateFileVersion ( filePath, AddedVersion );
-            } else if ( action=="delete" || action=="move/delete" || action=="purge" ) {
-                updateFileVersion ( filePath, RemovedVersion );
-            } else if ( action=="archive" ) {
+        if ( action.isEmpty() ) {
+            if ( !needsUpdate ) {
                 updateFileVersion ( filePath, NormalVersion );
             } else {
-                kWarning() << "Unknown perforce file version: " << action;
-                updateFileVersion ( filePath, NormalVersion );
+                updateFileVersion ( filePath, UpdateRequiredVersion );
             }
-            // FIXME: check version of a action = {import, branch, archive}
+        } else if ( needsUpdate ) {
+            updateFileVersion ( filePath, ConflictingVersion );
+        } else  if ( action.isEmpty() ) {
+            updateFileVersion ( filePath, NormalVersion );
+        } else if ( action=="edit" || action=="integrate" ) {
+            updateFileVersion ( filePath, LocallyModifiedVersion );
+        } else if ( action=="add" || action=="move/add" || action=="import" || action=="branch" ) {
+            updateFileVersion ( filePath, AddedVersion );
+        } else if ( action=="delete" || action=="move/delete" || action=="purge" ) {
+            updateFileVersion ( filePath, RemovedVersion );
+        } else if ( action=="archive" ) {
+            updateFileVersion ( filePath, NormalVersion );
+        } else {
+            kWarning() << "Unknown perforce file version: " << action;
+            updateFileVersion ( filePath, NormalVersion );
         }
+        strings.clear();
     }
 
     if ( ( process.exitCode() != 0 || process.exitStatus() != QProcess::NormalExit ) ) {
@@ -265,13 +274,13 @@ void FileViewPerforcePlugin::endRetrieval()
 KVersionControlPlugin2::ItemVersion FileViewPerforcePlugin::itemVersion ( const KFileItem& item ) const
 {
     const QString itemUrl = item.localPath();
-    
-    QHash<QString, ItemVersion>::const_iterator it = m_versionInfoHash.find( itemUrl );
+
+    QHash<QString, ItemVersion>::const_iterator it = m_versionInfoHash.find ( itemUrl );
     if ( it != m_versionInfoHash.end() ) {
         return *it;
     }
 
-    it = m_versionInfoHashDir.find( itemUrl );
+    it = m_versionInfoHashDir.find ( itemUrl );
     if ( it != m_versionInfoHashDir.end() ) {
         return *it;
     }
@@ -439,14 +448,14 @@ void FileViewPerforcePlugin::startPerforceCommandProcess()
     if ( !m_contextDir.isEmpty() ) {
         arguments << QLatin1String ( "-d" ) << m_contextDir
                   << m_command << m_arguments
-                  << m_contextDir.append ( "..." ); // append '...' to make the operation recurisive
+                  << m_contextDir.append ( "..." ); // append '...' to make the operation recursive
         m_contextDir.clear();
     } else {
         const KFileItem item = m_contextItems.takeLast();
         arguments << QLatin1String ( "-d" ) << item.localPath()
                   << m_command << m_arguments;
         if ( item.isDir() ) {
-            arguments << item.localPath().append ( "..." );
+            arguments << item.localPath().append ( "..." ); // append '...' to make the operation recursive
         } else {
             arguments << item.localPath();
         }
