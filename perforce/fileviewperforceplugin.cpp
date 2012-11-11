@@ -150,7 +150,7 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
             break;
         }
 
-        strings.append ( buffer );
+        strings.append ( QString::fromUtf8( buffer ) );
         if ( strings.last() != QLatin1String ( "\n" ) ) {
             continue;
         }
