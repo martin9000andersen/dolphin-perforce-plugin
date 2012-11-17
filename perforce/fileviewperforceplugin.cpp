@@ -121,13 +121,18 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
     m_versionInfoHashDir.clear();
 
     QProcess process;
-    process.start ( "p4 -d\"" % directory % "\" fstat -T\"clientFile,headRev,haveRev,action,unresolved\" -F\"haveRev|(^haveRev&^(headAction=delete|headAction=move/delete|headAction=purge))\" ..." );
+    process.start ( "p4"
+                    " -d\"" % directory % "\""
+                    " fstat"
+                    " -T\"clientFile,headRev,haveRev,action,unresolved\""
+                    " -F\"haveRev|(^haveRev&^(headAction=delete|headAction=move/delete|headAction=purge))\""
+                    " ..." );
 
-    // The output of this command are blocks of uptil 5 lines separated by a blanck line.
+    // The output of this command consists of blocks of up till 5 lines separated by a blank line.
     // The format of each block is:
-    //    "... clientFile " follower by the local file path
+    //    "... clientFile " followed by the local file path
     //    "... headRev " followed by the revision number of the local version of the file
-    //    "... haveRev "followed by a revision number of the latest revision on the server
+    //    "... haveRev " followed by a revision number of the latest revision on the server
     //    "... action " followed by an action
     //    "... unresolved"
     // The first line in mandatory, the remaning lines can be missing,
@@ -146,7 +151,7 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
 
         char buffer[1024];
         if ( process.readLine ( buffer, sizeof ( buffer ) ) <= 0 ) {
-            emit errorMessage ( QLatin1String ( "Reading error Error while reading output from 'p4 fstat' command." ) );
+            emit errorMessage ( QLatin1String ( "Error reading output from 'p4 fstat' command." ) );
             break;
         }
 
@@ -157,7 +162,7 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
         strings.removeLast();
 
         if ( strings.isEmpty() ) {
-            emit errorMessage ( QLatin1String ( "Error while reading output from 'p4 fstat' command: only newline read." ) );
+            emit errorMessage ( QLatin1String ( "Error reading output from 'p4 fstat' command: only newline read." ) );
             return false;
         }
 
@@ -361,7 +366,7 @@ void FileViewPerforcePlugin::addFiles()
 {
     execPerforceCommand ( QLatin1String ( "add" ), QStringList(),
                           i18nc ( "@info:status", "Adding files to Perforce repository..." ),
-                          i18nc ( "@info:status", "Adding of files to Perforce repository failed." ),
+                          i18nc ( "@info:status", "Adding files to Perforce repository failed." ),
                           i18nc ( "@info:status", "Added files to Perforce repository." ) );
 }
 
@@ -369,7 +374,7 @@ void FileViewPerforcePlugin::removeFiles()
 {
     execPerforceCommand ( QLatin1String ( "delete" ), QStringList(),
                           i18nc ( "@info:status", "Deleting files from Perforce repository..." ),
-                          i18nc ( "@info:status", "Deleting of files from Perforce repository failed." ),
+                          i18nc ( "@info:status", "Deleting files from Perforce repository failed." ),
                           i18nc ( "@info:status", "Deleted files from Perforce repository." ) );
 }
 
@@ -385,7 +390,7 @@ void FileViewPerforcePlugin::revertFiles()
 {
     execPerforceCommand ( QLatin1String ( "revert" ), QStringList(),
                           i18nc ( "@info:status", "Reverting files from Perforce repository..." ),
-                          i18nc ( "@info:status", "Reverting of files from Perforce repository failed." ),
+                          i18nc ( "@info:status", "Reverting files from Perforce repository failed." ),
                           i18nc ( "@info:status", "Reverted files from Perforce repository." ) );
 }
 
@@ -395,7 +400,7 @@ void FileViewPerforcePlugin::revertUnchangedFiles()
     arguments << "-a";
     execPerforceCommand ( QLatin1String ( "revert" ), arguments,
                           i18nc ( "@info:status", "Reverting unchanged files from Perforce repository..." ),
-                          i18nc ( "@info:status", "Reverting unchanged of files from Perforce repository failed." ),
+                          i18nc ( "@info:status", "Reverting unchanged files from Perforce repository failed." ),
                           i18nc ( "@info:status", "Reverted unchanged files from Perforce repository." ) );
 }
 
