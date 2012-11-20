@@ -144,6 +144,13 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
         emit errorMessage ( QLatin1String ( "Could not start 'p4 fstat' command." ) );
         return false;
     }
+
+    // Not sure if this is needed
+    if ( !process.waitForFinished() ) {
+        emit errorMessage ( QLatin1String ( "Error while executing 'p4 fstat' command." ) );
+        return false;
+    }
+
     QStringList strings;
     while ( process.state() !=QProcess::NotRunning || !process.atEnd() ) {
         if ( !process.canReadLine() ) {
