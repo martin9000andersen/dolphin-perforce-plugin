@@ -124,13 +124,15 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
     process.start ( "p4"
                     " -d\"" % directory % "\""
                     " fstat"
-                    " -T\"clientFile,headRev,haveRev,action,unresolved\""
+                    " -T\"clientFile,movedRev,headRev,haveRev,action,unresolved\""
                     " -F\"haveRev|(^haveRev&^(headAction=delete|headAction=move/delete|headAction=purge))\""
                     " ..." );
 
     // The output of this command consists of blocks of up till 5 lines separated by a blank line.
     // The format of each block is:
     //    "... clientFile " followed by the local file path
+    //    "... movedRev " followed by a revision number of the latest revision on the server
+    //                    of a file that have moved in the local branch
     //    "... headRev " followed by the revision number of the local version of the file
     //    "... haveRev " followed by a revision number of the latest revision on the server
     //    "... action " followed by an action
@@ -170,7 +172,7 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
         const int lengthFileName = strings.first().length() - clientFileStartPos -1;
         QString filePath = strings.first().mid ( clientFileStartPos, lengthFileName );
 
-        QString headRev;
+        QString serverRev;
         QString haveRev;
         QString action;
 
@@ -179,23 +181,30 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
             strings.clear();
             continue;
         }
+
         if ( strings.last().startsWith ( "... action" ) ) {
             static const int pos = sizeof ( "... action" );
             int length = strings.last().length() - pos -1;
             action = strings.takeLast().mid ( pos, length );
         }
+
         if ( strings.last().startsWith ( "... haveRev" ) ) {
             static const int pos = sizeof ( "... haveRev" );
             int length = strings.last().length() - pos -1;
             haveRev = strings.takeLast().mid ( pos, length );
         }
+
         if ( strings.last().startsWith ( "... headRev" ) ) {
             static const int pos = sizeof ( "... headRev" );
             int length = strings.last().length() - pos -1;
-            headRev = strings.takeLast().mid ( pos, length );
+            serverRev = strings.takeLast().mid ( pos, length );
+        } else if ( strings.last().startsWith ( "... movedRev" ) ) {
+            static const int pos = sizeof ( "... movedRev" );
+            int length = strings.last().length() - pos -1;
+            serverRev = strings.takeLast().mid ( pos, length );
         }
 
-        bool needsUpdate = ( haveRev != headRev );
+        bool needsUpdate = !haveRev.isEmpty() && !serverRev.isEmpty() && ( haveRev != serverRev );
 
         if ( action.isEmpty() ) {
             if ( !needsUpdate ) {
