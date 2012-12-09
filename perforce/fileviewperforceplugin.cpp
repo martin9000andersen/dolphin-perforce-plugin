@@ -24,6 +24,7 @@
 #include <kicon.h>
 #include <klocale.h>
 #include <KUrl>
+#include <krun.h>
 #include <QProcess>
 #include <QString>
 #include <kdebug.h>
@@ -34,6 +35,8 @@
 #include <KPluginLoader>
 K_PLUGIN_FACTORY ( FileViewPerforcePluginFactory, registerPlugin<FileViewPerforcePlugin>(); )
 K_EXPORT_PLUGIN ( FileViewPerforcePluginFactory ( "fileviewperforceplugin" ) )
+
+const QString DIFF_FILE_NAME = "/tmp/DIFF_FILE_NAME.diff";
 
 FileViewPerforcePlugin::FileViewPerforcePlugin ( QObject* parent, const QList<QVariant>& args ) :
     KVersionControlPlugin2 ( parent ),
@@ -49,7 +52,8 @@ FileViewPerforcePlugin::FileViewPerforcePlugin ( QObject* parent, const QList<QV
     m_operationCompletedMsg(),
     m_contextDir(),
     m_contextItems(),
-    m_process()
+    m_process(),
+    m_diffProcess()
 {
     Q_UNUSED ( args );
 
@@ -89,19 +93,45 @@ FileViewPerforcePlugin::FileViewPerforcePlugin ( QObject* parent, const QList<QV
     connect ( m_revertUnchangedAction, SIGNAL ( triggered() ),
               this, SLOT ( revertUnchangedFiles() ) );
 
+    m_diffActionHaveRev = new KAction ( this );
+    m_diffActionHaveRev->setIcon ( KIcon ( "view-split-left-right" ) );
+    m_diffActionHaveRev->setText ( i18nc ( "@item:inmenu", "Perforce Diff Against Have" ) );
+    connect ( m_diffActionHaveRev, SIGNAL ( triggered() ),
+              this, SLOT ( diffAgainstHaveRev() ) );
+
+    m_diffActionHeadRev = new KAction ( this );
+    m_diffActionHeadRev->setIcon ( KIcon ( "view-split-left-right" ) );
+    m_diffActionHeadRev->setText ( i18nc ( "@item:inmenu", "Perforce Diff Against Head" ) );
+    connect ( m_diffActionHeadRev, SIGNAL ( triggered() ),
+              this, SLOT ( diffAgainstHeadRev() ) );
+
     connect ( &m_process, SIGNAL ( finished ( int, QProcess::ExitStatus ) ),
               this, SLOT ( slotOperationCompleted ( int, QProcess::ExitStatus ) ) );
     connect ( &m_process, SIGNAL ( error ( QProcess::ProcessError ) ),
               this, SLOT ( slotOperationError() ) );
 
-    QProcessEnvironment currentEviron ( QProcessEnvironment::systemEnvironment() );
+    connect ( &m_diffProcess, SIGNAL ( finished ( int, QProcess::ExitStatus ) ),
+              this, SLOT ( slotDiffOperationCompleted ( int, QProcess::ExitStatus ) ) );
+    connect ( &m_diffProcess, SIGNAL ( error ( QProcess::ProcessError ) ),
+              this, SLOT ( slotOperationError() ) );
+
+    QProcessEnvironment processEnvironment ( QProcessEnvironment::systemEnvironment() );
     // We will default search for p4config.txt - However if something else is used, search for that
-    QString tmp ( currentEviron.value ( "P4CONFIG" ) );
+    QString tmp ( processEnvironment.value ( "P4CONFIG" ) );
     if ( !tmp.isEmpty() ) {
         m_perforceConfigName = tmp;
     } else {
         m_perforceConfigName = "p4config.txt";
     }
+
+    // The diff commands in this file depends on the default perforce diff tool. This can be changed
+    // with if P4DIFF, there fore this environment var is removed.
+    // Note however that it can also be changed in the config file in the directory of the file under
+    // perforce control and there are no easy way to overwrite this setting
+    processEnvironment.remove( "P4DIFF" );
+    m_diffProcess.setProcessEnvironment( processEnvironment );
+
+    m_diffProcess.setStandardOutputFile( DIFF_FILE_NAME );
 }
 
 FileViewPerforcePlugin::~FileViewPerforcePlugin()
@@ -119,10 +149,11 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
 
     m_versionInfoHash.clear();
     m_versionInfoHashDir.clear();
+    m_p4WorkingDir = directory;
 
     QProcess process;
     process.start ( "p4"
-                    " -d\"" % directory % "\""
+                    " -d\"" % m_p4WorkingDir % "\""
                     " fstat"
                     " -T\"clientFile,movedRev,headRev,haveRev,action,unresolved\""
                     " -F\"haveRev|(^haveRev&^(headAction=delete|headAction=move/delete|headAction=purge))\""
@@ -328,6 +359,8 @@ QList<QAction*> FileViewPerforcePlugin::actions ( const KFileItemList& items ) c
         const int itemsCount = items.count();
         int versionedCount = 0;
         int editingCount = 0;
+        int diffableAgainstHeadRev = 0;
+        int diffableAgainstHaveRev = 0;
         foreach ( const KFileItem& item, items ) {
             const ItemVersion version = itemVersion ( item );
             if ( version != UnversionedVersion ) {
@@ -336,10 +369,20 @@ QList<QAction*> FileViewPerforcePlugin::actions ( const KFileItemList& items ) c
 
             switch ( version ) {
             case LocallyModifiedVersion:
-            case ConflictingVersion:
+                ++editingCount;
+                ++diffableAgainstHaveRev;
+                break;
             case AddedVersion:
             case RemovedVersion:
                 ++editingCount;
+                break;
+            case ConflictingVersion:
+                ++editingCount;
+                ++diffableAgainstHaveRev;
+                ++diffableAgainstHeadRev;
+                break;
+            case UpdateRequiredVersion:
+                ++diffableAgainstHeadRev;
                 break;
             default:
                 break;
@@ -347,12 +390,16 @@ QList<QAction*> FileViewPerforcePlugin::actions ( const KFileItemList& items ) c
         }
         m_revertAction->setEnabled ( editingCount > 0 );
         m_revertUnchangedAction->setEnabled ( editingCount > 0 );
+        m_diffActionHaveRev->setEnabled ( diffableAgainstHaveRev > 0 );
+        m_diffActionHeadRev->setEnabled ( diffableAgainstHeadRev > 0 );
         m_addAction->setEnabled ( versionedCount == 0 );
         m_removeAction->setEnabled ( versionedCount == itemsCount && editingCount == 0 );
         m_openForEditAction->setEnabled ( editingCount < itemsCount );
     } else {
         m_revertAction->setEnabled ( false );
         m_revertUnchangedAction->setEnabled ( false );
+        m_diffActionHaveRev->setEnabled ( false );
+        m_diffActionHeadRev->setEnabled ( false );
         m_addAction->setEnabled ( false );
         m_removeAction->setEnabled ( false );
         m_openForEditAction->setEnabled ( false );
@@ -366,6 +413,8 @@ QList<QAction*> FileViewPerforcePlugin::actions ( const KFileItemList& items ) c
     actions.append ( m_removeAction );
     actions.append ( m_revertAction );
     actions.append ( m_revertUnchangedAction );
+    actions.append ( m_diffActionHaveRev );
+    actions.append ( m_diffActionHeadRev );
     return actions;
 }
 
@@ -420,6 +469,45 @@ void FileViewPerforcePlugin::revertUnchangedFiles()
                           i18nc ( "@info:status", "Reverted unchanged files from Perforce repository." ) );
 }
 
+void FileViewPerforcePlugin::diffAgainstRev( const QString& rev )
+{
+    QString command = QLatin1String("p4 -d\"") % m_p4WorkingDir % QLatin1String("\" diff -du");
+    foreach ( const KFileItem& item, m_contextItems ) {
+        command += QLatin1String(" ") % item.localPath();
+        if( item.isDir() )
+        {
+            command += "/...";
+        }
+        command += QLatin1String("#") % rev;
+    }
+    m_contextItems.clear();
+    if ( !m_contextDir.isEmpty() )
+    {
+        command += QLatin1String(" ") % m_contextDir % QLatin1String("/...#") % rev;
+    }
+    m_contextDir.clear();
+
+    QFile::remove( DIFF_FILE_NAME );
+
+    emit infoMessage ( i18nc ( "@info:status", "Performing perforce diff..." ) );
+
+    m_errorMsg = i18nc ( "@info:status", "Perforce diff failed." ) ;
+    m_operationCompletedMsg = i18nc ( "@info:status", "Perforce diff compleet." ) ;
+
+    m_pendingOperation = true;
+    m_diffProcess.start( command );
+}
+
+void FileViewPerforcePlugin::diffAgainstHaveRev()
+{
+    diffAgainstRev("have");
+}
+
+void FileViewPerforcePlugin::diffAgainstHeadRev()
+{
+    diffAgainstRev("head");
+}
+
 void FileViewPerforcePlugin::slotOperationCompleted ( int exitCode, QProcess::ExitStatus exitStatus )
 {
     m_pendingOperation = false;
@@ -441,6 +529,26 @@ void FileViewPerforcePlugin::slotOperationError()
     m_pendingOperation = false;
 
     emit errorMessage ( m_errorMsg );
+}
+
+void FileViewPerforcePlugin::slotDiffOperationCompleted ( int exitCode, QProcess::ExitStatus exitStatus )
+{
+    m_pendingOperation = false;
+
+    if ( ( exitStatus != QProcess::NormalExit ) || ( exitCode != 0 ) ) {
+        emit errorMessage ( m_errorMsg );
+    } else {
+        emit operationCompletedMessage ( m_operationCompletedMsg );
+        if( QFile::exists( DIFF_FILE_NAME ) && QFile( DIFF_FILE_NAME ).size() > 0 )
+        {
+            emit infoMessage ( "Launcing external diff viewer" );
+            KRun::runCommand( QLatin1String("kompare ") % DIFF_FILE_NAME % QLatin1String("; rm ") % DIFF_FILE_NAME, 0);
+        }
+        else
+        {
+            emit operationCompletedMessage ( "No diff to show" );
+        }
+    }
 }
 
 void FileViewPerforcePlugin::execPerforceCommand ( const QString& perforceCommand,
@@ -466,15 +574,13 @@ void FileViewPerforcePlugin::startPerforceCommandProcess()
 
     const QString program ( QLatin1String ( "p4" ) );
     QStringList arguments;
+    arguments << QLatin1String ( "-d" ) << m_p4WorkingDir
+              << m_command << m_arguments;
     if ( !m_contextDir.isEmpty() ) {
-        arguments << QLatin1String ( "-d" ) << m_contextDir
-                  << m_command << m_arguments
-                  << m_contextDir.append ( "..." ); // append '...' to make the operation recursive
+        arguments << m_contextDir.append ( "..." ); // append '...' to make the operation recursive
         m_contextDir.clear();
     } else {
         const KFileItem item = m_contextItems.takeLast();
-        arguments << QLatin1String ( "-d" ) << item.localPath()
-                  << m_command << m_arguments;
         if ( item.isDir() ) {
             arguments << item.localPath().append ( "..." ); // append '...' to make the operation recursive
         } else {
@@ -507,12 +613,16 @@ QList<QAction*> FileViewPerforcePlugin::directoryActions ( const QString& direct
     m_openForEditAction->setEnabled ( enabled );
     m_revertAction->setEnabled ( enabled );
     m_revertUnchangedAction->setEnabled ( enabled );
+    m_diffActionHaveRev->setEnabled ( enabled );
+    m_diffActionHeadRev->setEnabled ( enabled );
 
     QList<QAction*> actions;
     actions.append ( m_openForEditAction );
     actions.append ( m_updateAction );
     actions.append ( m_revertAction );
     actions.append ( m_revertUnchangedAction );
+    actions.append ( m_diffActionHaveRev );
+    actions.append ( m_diffActionHeadRev );
     return actions;
 }
 

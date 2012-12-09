@@ -48,9 +48,12 @@ private slots:
     void removeFiles();
     void revertFiles();
     void revertUnchangedFiles();
+    void diffAgainstHaveRev();
+    void diffAgainstHeadRev();
 
     void slotOperationCompleted(int exitCode, QProcess::ExitStatus exitStatus);
     void slotOperationError();
+    void slotDiffOperationCompleted(int exitCode, QProcess::ExitStatus exitStatus);
 
 private:
     /**
@@ -73,9 +76,10 @@ private:
 
     void updateFileVersion( const QString& filePath, KVersionControlPlugin2::ItemVersion version );
 
+    void diffAgainstRev(const QString& rev);
+
     QList<QAction*> directoryActions(const QString& directory) const;
 
-private:
     bool m_pendingOperation;
     QHash<QString, ItemVersion> m_versionInfoHash;
     QHash<QString, ItemVersion> m_versionInfoHashDir;
@@ -86,6 +90,8 @@ private:
     QAction* m_openForEditAction;
     QAction* m_revertAction;
     QAction* m_revertUnchangedAction;
+    QAction* m_diffActionHaveRev;
+    QAction* m_diffActionHeadRev;
 
     QString m_command;
     QStringList m_arguments;
@@ -96,7 +102,9 @@ private:
     mutable KFileItemList m_contextItems;
 
     QProcess m_process;
+    QProcess m_diffProcess;
     QString m_perforceConfigName;
+    QString m_p4WorkingDir;
 };
 #endif // FILEVIEWPERFORCEPLUGIN_H
 
