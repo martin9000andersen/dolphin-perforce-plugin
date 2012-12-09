@@ -342,11 +342,6 @@ KVersionControlPlugin2::ItemVersion FileViewPerforcePlugin::itemVersion ( const 
 
 QList<QAction*> FileViewPerforcePlugin::actions ( const KFileItemList& items ) const
 {
-    if ( items.count() == 1 && items.first().isDir() ) {
-        const QString directory = items.first().url().path();
-        return directoryActions ( directory );
-    }
-
     foreach ( const KFileItem& item, items ) {
         m_contextItems.append ( item );
     }
@@ -591,39 +586,6 @@ void FileViewPerforcePlugin::startPerforceCommandProcess()
     }
 
     m_process.start ( program, arguments );
-}
-
-QList<QAction*> FileViewPerforcePlugin::directoryActions ( const QString& directory ) const
-{
-    m_contextDir = directory;
-    m_contextItems.clear();
-
-    // No items if on file in the directory is not under version control
-    if ( !m_versionInfoHashDir.contains ( directory ) ) {
-        QList<QAction*> actions;
-        return actions;
-    }
-
-    // Only enable the Perforce actions if no Perforce commands are
-    // executed currently (see slotOperationCompleted() and
-    // startPerforceCommandProcess()).
-    const bool enabled = !m_pendingOperation;
-
-    m_updateAction->setEnabled ( enabled );
-    m_openForEditAction->setEnabled ( enabled );
-    m_revertAction->setEnabled ( enabled );
-    m_revertUnchangedAction->setEnabled ( enabled );
-    m_diffActionHaveRev->setEnabled ( enabled );
-    m_diffActionHeadRev->setEnabled ( enabled );
-
-    QList<QAction*> actions;
-    actions.append ( m_openForEditAction );
-    actions.append ( m_updateAction );
-    actions.append ( m_revertAction );
-    actions.append ( m_revertUnchangedAction );
-    actions.append ( m_diffActionHaveRev );
-    actions.append ( m_diffActionHeadRev );
-    return actions;
 }
 
 #include "fileviewperforceplugin.moc"

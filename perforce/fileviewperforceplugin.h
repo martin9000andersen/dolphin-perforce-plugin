@@ -78,8 +78,6 @@ private:
 
     void diffAgainstRev(const QString& rev);
 
-    QList<QAction*> directoryActions(const QString& directory) const;
-
     bool m_pendingOperation;
     QHash<QString, ItemVersion> m_versionInfoHash;
     QHash<QString, ItemVersion> m_versionInfoHashDir;
