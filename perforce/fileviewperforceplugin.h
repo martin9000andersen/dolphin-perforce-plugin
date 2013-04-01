@@ -96,7 +96,6 @@ private:
     QString m_errorMsg;
     QString m_operationCompletedMsg;
 
-    mutable QString m_contextDir;
     mutable KFileItemList m_contextItems;
 
     QProcess m_process;

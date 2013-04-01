@@ -50,7 +50,6 @@ FileViewPerforcePlugin::FileViewPerforcePlugin ( QObject* parent, const QList<QV
     m_arguments(),
     m_errorMsg(),
     m_operationCompletedMsg(),
-    m_contextDir(),
     m_contextItems(),
     m_process(),
     m_diffProcess()
@@ -345,7 +344,6 @@ QList<QAction*> FileViewPerforcePlugin::actions ( const KFileItemList& items ) c
     foreach ( const KFileItem& item, items ) {
         m_contextItems.append ( item );
     }
-    m_contextDir.clear();
 
     const bool noPendingOperation = !m_pendingOperation;
     if ( noPendingOperation ) {
@@ -476,11 +474,6 @@ void FileViewPerforcePlugin::diffAgainstRev( const QString& rev )
         command += QLatin1String("#") % rev;
     }
     m_contextItems.clear();
-    if ( !m_contextDir.isEmpty() )
-    {
-        command += QLatin1String(" ") % m_contextDir % QLatin1String("/...#") % rev;
-    }
-    m_contextDir.clear();
 
     QFile::remove( DIFF_FILE_NAME );
 
@@ -571,19 +564,15 @@ void FileViewPerforcePlugin::startPerforceCommandProcess()
     QStringList arguments;
     arguments << QLatin1String ( "-d" ) << m_p4WorkingDir
               << m_command << m_arguments;
-    if ( !m_contextDir.isEmpty() ) {
-        arguments << m_contextDir.append ( "..." ); // append '...' to make the operation recursive
-        m_contextDir.clear();
+
+    const KFileItem item = m_contextItems.takeLast();
+    if ( item.isDir() ) {
+        arguments << item.localPath().append ( "/..." ); // append '...' to make the operation recursive
     } else {
-        const KFileItem item = m_contextItems.takeLast();
-        if ( item.isDir() ) {
-            arguments << item.localPath().append ( "..." ); // append '...' to make the operation recursive
-        } else {
-            arguments << item.localPath();
-        }
-        // the remaining items of m_contextItems will be executed
-        // after the process has finished (see slotOperationCompleted())
+        arguments << item.localPath();
     }
+    // the remaining items of m_contextItems will be executed
+    // after the process has finished (see slotOperationCompleted())
 
     m_process.start ( program, arguments );
 }
