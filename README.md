@@ -10,9 +10,7 @@ Displayes the state of the files inder Perforce control and adds a simple right-
 
 Notes
 =====
-The plugin has a runtime dependency on P4 (The Perforce Command-Line Client), you probaly already got this if you are using Perforce on the pc. However it can be found here: http://www.perforce.com/product/components/perforce_commandline_client
-
-The user needs to ensure that the environment variable P4CONFIG is set and that a coresponding file is placed in the toplevel directory under Perforce control.
+The plugin has runtime dependencies on P4, P4V, and P4VC version 2012.1 or later, you probaly already got this if you are using Perforce on the pc. However it can be found here: http://www.perforce.com/
 
 The user needs to ensure that the environment variable P4CONFIG is set and that a coresponding file is placed in the top-level directory under Perforce control.
 

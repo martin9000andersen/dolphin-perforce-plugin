@@ -50,6 +50,9 @@ private slots:
     void revertUnchangedFiles();
     void diffAgainstHaveRev();
     void diffAgainstHeadRev();
+    void resolveConflict();
+    void timelapsview();
+    void showInP4V();
 
     void slotOperationCompleted(int exitCode, QProcess::ExitStatus exitStatus);
     void slotOperationError();
@@ -90,6 +93,9 @@ private:
     QAction* m_revertUnchangedAction;
     QAction* m_diffActionHaveRev;
     QAction* m_diffActionHeadRev;
+    QAction* m_resolveAction;
+    QAction* m_timelapsviewAction;
+    QAction* m_showInP4VAction;
 
     QString m_command;
     QStringList m_arguments;

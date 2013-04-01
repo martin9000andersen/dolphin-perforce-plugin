@@ -30,6 +30,7 @@
 #include <kdebug.h>
 #include <QDirIterator>
 #include <QStringBuilder>
+#include <kshell.h>
 
 #include <KPluginFactory>
 #include <KPluginLoader>
@@ -97,6 +98,24 @@ FileViewPerforcePlugin::FileViewPerforcePlugin ( QObject* parent, const QList<QV
     m_diffActionHaveRev->setText ( i18nc ( "@item:inmenu", "Perforce Diff Against Have" ) );
     connect ( m_diffActionHaveRev, SIGNAL ( triggered() ),
               this, SLOT ( diffAgainstHaveRev() ) );
+
+    m_resolveAction = new KAction ( this );
+    m_resolveAction->setIcon ( KIcon ( "view-split-left-right" ) ); //TODO: find icon
+    m_resolveAction->setText ( i18nc ( "@item:inmenu", "Perforce Resolve Conflict" ) );
+    connect ( m_resolveAction, SIGNAL ( triggered() ),
+              this, SLOT ( resolveConflict() ) );
+
+    m_timelapsviewAction = new KAction ( this );
+    m_timelapsviewAction->setIcon ( KIcon ( "view-split-left-right" ) ); //TODO: find icon
+    m_timelapsviewAction->setText ( i18nc ( "@item:inmenu", "Perforce Timelapsview" ) );
+    connect ( m_timelapsviewAction, SIGNAL ( triggered() ),
+              this, SLOT ( timelapsview() ) );
+
+    m_showInP4VAction = new KAction ( this );
+    m_showInP4VAction->setIcon ( KIcon ( "view-split-left-right" ) ); //TODO: find icon
+    m_showInP4VAction->setText ( i18nc ( "@item:inmenu", "Perforce Show File in P4V" ) );
+    connect ( m_showInP4VAction, SIGNAL ( triggered() ),
+              this, SLOT ( showInP4V() ) );
 
     m_diffActionHeadRev = new KAction ( this );
     m_diffActionHeadRev->setIcon ( KIcon ( "view-split-left-right" ) );
@@ -354,10 +373,15 @@ QList<QAction*> FileViewPerforcePlugin::actions ( const KFileItemList& items ) c
         int editingCount = 0;
         int diffableAgainstHeadRev = 0;
         int diffableAgainstHaveRev = 0;
+        int conflictCount = 0;
+        int dirCount = 0;
         foreach ( const KFileItem& item, items ) {
             const ItemVersion version = itemVersion ( item );
             if ( version != UnversionedVersion ) {
                 ++versionedCount;
+            }
+            if ( item.isDir() ) {
+                ++dirCount;
             }
 
             switch ( version ) {
@@ -373,6 +397,7 @@ QList<QAction*> FileViewPerforcePlugin::actions ( const KFileItemList& items ) c
                 ++editingCount;
                 ++diffableAgainstHaveRev;
                 ++diffableAgainstHeadRev;
+                ++conflictCount;
                 break;
             case UpdateRequiredVersion:
                 ++diffableAgainstHeadRev;
@@ -388,6 +413,9 @@ QList<QAction*> FileViewPerforcePlugin::actions ( const KFileItemList& items ) c
         m_addAction->setEnabled ( versionedCount == 0 );
         m_removeAction->setEnabled ( versionedCount == itemsCount && editingCount == 0 );
         m_openForEditAction->setEnabled ( editingCount < itemsCount );
+        m_resolveAction->setEnabled ( conflictCount > 0 );
+        m_timelapsviewAction->setEnabled ( versionedCount == 1 && itemsCount==1 && dirCount==0 );
+        m_showInP4VAction->setEnabled ( versionedCount == 1 && itemsCount==1 );
     } else {
         m_revertAction->setEnabled ( false );
         m_revertUnchangedAction->setEnabled ( false );
@@ -396,6 +424,9 @@ QList<QAction*> FileViewPerforcePlugin::actions ( const KFileItemList& items ) c
         m_addAction->setEnabled ( false );
         m_removeAction->setEnabled ( false );
         m_openForEditAction->setEnabled ( false );
+        m_resolveAction->setEnabled ( false );
+        m_timelapsviewAction->setEnabled ( false );
+        m_showInP4VAction->setEnabled ( false );
     }
     m_updateAction->setEnabled ( noPendingOperation );
 
@@ -408,6 +439,10 @@ QList<QAction*> FileViewPerforcePlugin::actions ( const KFileItemList& items ) c
     actions.append ( m_revertUnchangedAction );
     actions.append ( m_diffActionHaveRev );
     actions.append ( m_diffActionHeadRev );
+    actions.append ( m_resolveAction );
+    actions.append ( m_timelapsviewAction );
+    actions.append ( m_showInP4VAction );
+
     return actions;
 }
 
@@ -494,6 +529,88 @@ void FileViewPerforcePlugin::diffAgainstHaveRev()
 void FileViewPerforcePlugin::diffAgainstHeadRev()
 {
     diffAgainstRev("head");
+}
+
+void FileViewPerforcePlugin::resolveConflict()
+{
+    QString files;
+    foreach ( const KFileItem& item, m_contextItems ) {
+        files += QLatin1String(" ") % KShell::quoteArg(item.localPath());
+        if( item.isDir() )
+        {
+            files += "/...";
+        }
+    }
+    m_contextItems.clear();
+
+    emit infoMessage ( i18nc ( "@info:status", "Launcing external conflict resolver" ) );
+    m_operationCompletedMsg = i18nc ( "@info:status", "Launched Perforce Resolve." );
+    m_errorMsg = i18nc ( "@info:status", "Launcing Perforce Resolve failed." );
+
+    bool res = KRun::runCommand( QLatin1String("cd ") % KShell::quoteArg(m_p4WorkingDir) % QLatin1String(";") %  // p4vc does not respect KRun working directory
+                                 QLatin1String("p4vc resolve ") % files,
+                                 "p4vc", QString(), 0);
+
+    if ( res )
+    {
+        emit operationCompletedMessage ( m_operationCompletedMsg );
+    }
+    else
+    {
+        emit errorMessage ( m_errorMsg );
+    }
+}
+
+void FileViewPerforcePlugin::timelapsview()
+{
+    QString path = m_contextItems.first().localPath(); // only one specified
+    m_contextItems.clear();
+
+    emit infoMessage ( i18nc ( "@info:status", "Launcing Perforce Timelapsview..." ) ); //TODO: space in filename...
+    m_operationCompletedMsg = i18nc ( "@info:status", "Launched Perforce Timelapsview." );
+    m_errorMsg = i18nc ( "@info:status", "Launcing Perforce Timelapsview failed." );
+
+    bool res = KRun::runCommand( QLatin1String("cd ") % KShell::quoteArg(m_p4WorkingDir) % QLatin1String(";") %  // p4vc does not respect KRun working directory
+                                 QLatin1String("p4vc timelapseview ") % KShell::quoteArg(path),
+                                 "p4vc", QString(), 0);
+
+    if ( res )
+    {
+        emit operationCompletedMessage ( m_operationCompletedMsg );
+    }
+    else
+    {
+        emit errorMessage ( m_errorMsg );
+    }
+}
+
+void FileViewPerforcePlugin::showInP4V()
+{
+    QString path = m_contextItems.first().localPath(); // only one specified
+    m_contextItems.clear();
+
+    emit infoMessage ( i18nc ( "@info:status", "Launcing P4V..." ) );
+    m_operationCompletedMsg = i18nc ( "@info:status", "Launched P4V." );
+    m_errorMsg = i18nc ( "@info:status", "Launcing P4V failed." );
+
+    // The command to run is "p4v -s path", but we need to give the p4-port, p4-client name and p4 username
+    // they are returned by "p4 set" in a format like this:
+    //     P4CLIENT=my_workspace (config)
+    //     P4PORT=localhost:1666 (config)
+    //     P4USER=user
+    // sed are used to filter the output and export the variabels P4CLIENT, P4PORT, and P4USER
+    bool res = KRun::runCommand( QLatin1String("`p4 -d\"")  % m_p4WorkingDir % QLatin1String("\" set | sed -n 's/\\(^P4[^=]*=[^ ]*\\).*/export \\1/p'`;") %
+                                 QLatin1String("p4v -p ${P4PORT} -c ${P4CLIENT} -u ${P4USER} -s ") % KShell::quoteArg(path),
+                                 "p4v", QString(), 0);
+
+    if ( res )
+    {
+        emit operationCompletedMessage ( m_operationCompletedMsg );
+    }
+    else
+    {
+        emit errorMessage ( m_errorMsg );
+    }
 }
 
 void FileViewPerforcePlugin::slotOperationCompleted ( int exitCode, QProcess::ExitStatus exitStatus )
