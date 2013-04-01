@@ -457,7 +457,9 @@ void FileViewPerforcePlugin::updateFiles()
 
 void FileViewPerforcePlugin::addFiles()
 {
-    execPerforceCommand ( QLatin1String ( "add" ), QStringList(),
+    QStringList arguments;
+    arguments << "-a";
+    execPerforceCommand ( QLatin1String ( "reconcile" ), arguments,
                           i18nc ( "@info:status", "Adding files to Perforce repository..." ),
                           i18nc ( "@info:status", "Adding files to Perforce repository failed." ),
                           i18nc ( "@info:status", "Added files to Perforce repository." ) );
