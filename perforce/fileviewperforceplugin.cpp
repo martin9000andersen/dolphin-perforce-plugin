@@ -41,19 +41,7 @@ const QString DIFF_FILE_NAME = "/tmp/DIFF_FILE_NAME.diff";
 
 FileViewPerforcePlugin::FileViewPerforcePlugin ( QObject* parent, const QList<QVariant>& args ) :
     KVersionControlPlugin2 ( parent ),
-    m_pendingOperation ( false ),
-    m_versionInfoHash(),
-    m_versionInfoHashDir(),
-    m_updateAction ( 0 ),
-    m_addAction ( 0 ),
-    m_removeAction ( 0 ),
-    m_command(),
-    m_arguments(),
-    m_errorMsg(),
-    m_operationCompletedMsg(),
-    m_contextItems(),
-    m_process(),
-    m_diffProcess()
+    m_pendingOperation ( false )
 {
     Q_UNUSED ( args );
 
