@@ -89,19 +89,19 @@ FileViewPerforcePlugin::FileViewPerforcePlugin ( QObject* parent, const QList<QV
               this, SLOT ( diffAgainstHaveRev() ) );
 
     m_resolveAction = new KAction ( this );
-    m_resolveAction->setIcon ( KIcon ( "view-split-left-right" ) ); //TODO: find icon
+    // m_resolveAction->setIcon ( KIcon ( "view-split-left-right" ) ); //TODO: find icon
     m_resolveAction->setText ( i18nc ( "@item:inmenu", "Perforce Resolve Conflict" ) );
     connect ( m_resolveAction, SIGNAL ( triggered() ),
               this, SLOT ( resolveConflict() ) );
 
     m_timelapsviewAction = new KAction ( this );
-    m_timelapsviewAction->setIcon ( KIcon ( "view-split-left-right" ) ); //TODO: find icon
+    m_timelapsviewAction->setIcon ( KIcon ( "view-history" ) );
     m_timelapsviewAction->setText ( i18nc ( "@item:inmenu", "Perforce Timelapsview" ) );
     connect ( m_timelapsviewAction, SIGNAL ( triggered() ),
               this, SLOT ( timelapsview() ) );
 
     m_showInP4VAction = new KAction ( this );
-    m_showInP4VAction->setIcon ( KIcon ( "view-split-left-right" ) ); //TODO: find icon
+    m_showInP4VAction->setIcon ( KIcon ( "p4v" ) );
     m_showInP4VAction->setText ( i18nc ( "@item:inmenu", "Perforce Show File in P4V" ) );
     connect ( m_showInP4VAction, SIGNAL ( triggered() ),
               this, SLOT ( showInP4V() ) );
