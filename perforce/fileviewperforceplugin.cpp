@@ -106,6 +106,12 @@ FileViewPerforcePlugin::FileViewPerforcePlugin ( QObject* parent, const QList<QV
     connect ( m_showInP4VAction, SIGNAL ( triggered() ),
               this, SLOT ( showInP4V() ) );
 
+    m_submitAction = new KAction ( this );
+    m_submitAction->setIcon ( KIcon ( "svn-commit" ) );
+    m_submitAction->setText ( i18nc ( "@item:inmenu", "Perforce Submit" ) );
+    connect ( m_submitAction, SIGNAL ( triggered() ),
+              this, SLOT ( submit() ) );
+
     m_diffActionHeadRev = new KAction ( this );
     m_diffActionHeadRev->setIcon ( KIcon ( "view-split-left-right" ) );
     m_diffActionHeadRev->setText ( i18nc ( "@item:inmenu", "Perforce Diff Against Head" ) );
@@ -408,6 +414,7 @@ QList<QAction*> FileViewPerforcePlugin::actions ( const KFileItemList& items ) c
         m_resolveAction->setEnabled ( conflictCount > 0 );
         m_timelapsviewAction->setEnabled ( versionedCount == 1 && itemsCount==1 && dirCount==0 );
         m_showInP4VAction->setEnabled ( versionedCount == 1 && itemsCount==1 );
+        m_submitAction->setEnabled ( editingCount == 1 && itemsCount==1 && dirCount==0 );
     } else {
         m_revertAction->setEnabled ( false );
         m_revertUnchangedAction->setEnabled ( false );
@@ -419,6 +426,7 @@ QList<QAction*> FileViewPerforcePlugin::actions ( const KFileItemList& items ) c
         m_resolveAction->setEnabled ( false );
         m_timelapsviewAction->setEnabled ( false );
         m_showInP4VAction->setEnabled ( false );
+        m_submitAction->setEnabled ( false );
     }
     m_updateAction->setEnabled ( noPendingOperation );
 
@@ -434,6 +442,7 @@ QList<QAction*> FileViewPerforcePlugin::actions ( const KFileItemList& items ) c
     actions.append ( m_resolveAction );
     actions.append ( m_timelapsviewAction );
     actions.append ( m_showInP4VAction );
+    actions.append ( m_submitAction );
 
     return actions;
 }
@@ -598,6 +607,35 @@ void FileViewPerforcePlugin::showInP4V()
     // sed are used to filter the output and export the variabels P4CLIENT, P4PORT, and P4USER
     bool res = KRun::runCommand( QLatin1String("`p4 set | sed -n 's/\\(^P4[^=]*=[^ ]*\\).*/export \\1/p'`;") %
                                  QLatin1String("p4v -p ${P4PORT} -c ${P4CLIENT} -u ${P4USER} -s ") % KShell::quoteArg(path),
+                                 "p4v", QString(), 0, QByteArray(), m_p4WorkingDir );
+
+    if ( res )
+    {
+        emit operationCompletedMessage ( m_operationCompletedMsg );
+    }
+    else
+    {
+        emit errorMessage ( m_errorMsg );
+    }
+}
+
+void FileViewPerforcePlugin::submit()
+{
+    QString path = m_contextItems.first().localPath(); // only one specified
+    m_contextItems.clear();
+
+    emit infoMessage ( i18nc ( "@info:status", "Launcing P4V submit..." ) );
+    m_operationCompletedMsg = i18nc ( "@info:status", "Launched P4V submit." );
+    m_errorMsg = i18nc ( "@info:status", "Launcing P4V submit failed." );
+
+    // The command to run is 'p4v -cmd "submit path"', but we need to give the p4-port, p4-client name and p4 username
+    // they are returned by "p4 set" in a format like this:
+    //     P4CLIENT=my_workspace (config)
+    //     P4PORT=localhost:1666 (config)
+    //     P4USER=user
+    // sed are used to filter the output and export the variabels P4CLIENT, P4PORT, and P4USER
+    bool res = KRun::runCommand( QLatin1String("`p4 set | sed -n 's/\\(^P4[^=]*=[^ ]*\\).*/export \\1/p'`;") %
+                                 QLatin1String("p4v -p ${P4PORT} -c ${P4CLIENT} -u ${P4USER} -cmd \"submit ") % path % "\"",
                                  "p4v", QString(), 0, QByteArray(), m_p4WorkingDir );
 
     if ( res )

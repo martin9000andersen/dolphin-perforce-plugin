@@ -53,6 +53,7 @@ private slots:
     void resolveConflict();
     void timelapsview();
     void showInP4V();
+    void submit();
 
     void slotOperationCompleted(int exitCode, QProcess::ExitStatus exitStatus);
     void slotOperationError();
@@ -96,6 +97,7 @@ private:
     QAction* m_resolveAction;
     QAction* m_timelapsviewAction;
     QAction* m_showInP4VAction;
+    QAction* m_submitAction;
 
     QString m_command;
     QStringList m_arguments;
