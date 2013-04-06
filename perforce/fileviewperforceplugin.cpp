@@ -408,9 +408,9 @@ QList<QAction*> FileViewPerforcePlugin::actions ( const KFileItemList& items ) c
         m_revertUnchangedAction->setEnabled ( editingCount > 0 );
         m_diffActionHaveRev->setEnabled ( diffableAgainstHaveRev > 0 );
         m_diffActionHeadRev->setEnabled ( diffableAgainstHeadRev > 0 );
-        m_addAction->setEnabled ( versionedCount == 0 );
+        m_addAction->setEnabled ( versionedCount < itemsCount || dirCount > 0 );
         m_removeAction->setEnabled ( versionedCount == itemsCount && editingCount == 0 );
-        m_openForEditAction->setEnabled ( editingCount < itemsCount );
+        m_openForEditAction->setEnabled ( editingCount < itemsCount && versionedCount > 0 );
         m_resolveAction->setEnabled ( conflictCount > 0 );
         m_timelapsviewAction->setEnabled ( versionedCount == 1 && itemsCount==1 && dirCount==0 );
         m_showInP4VAction->setEnabled ( versionedCount == 1 && itemsCount==1 );
