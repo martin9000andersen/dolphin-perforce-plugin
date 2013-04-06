@@ -29,6 +29,7 @@
 #include <QString>
 #include <kdebug.h>
 #include <QDirIterator>
+#include <QDir>
 #include <QStringBuilder>
 #include <kshell.h>
 
@@ -158,8 +159,11 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
     m_p4WorkingDir = directory;
 
     QProcess process;
+    // The 'p4' command needs to be executed from within the directory under perforce control,
+    // process.setWorkingDirectory(m_p4WorkingDir) does not work,
+    // using QDir::setCurrent(m_p4WorkingDir) works
+    QDir::setCurrent(m_p4WorkingDir);
     process.start ( "p4"
-                    " -d\"" % m_p4WorkingDir % "\""
                     " fstat"
                     " -T\"clientFile,movedRev,headRev,haveRev,action,unresolved\""
                     " -F\"haveRev|(^haveRev&^(headAction=delete|headAction=move/delete|headAction=purge))\""
@@ -489,7 +493,7 @@ void FileViewPerforcePlugin::revertUnchangedFiles()
 
 void FileViewPerforcePlugin::diffAgainstRev( const QString& rev )
 {
-    QString command = QLatin1String("p4 -d\"") % m_p4WorkingDir % QLatin1String("\" diff -du");
+    QString command = QLatin1String("p4 diff -du");
     foreach ( const KFileItem& item, m_contextItems ) {
         command += QLatin1String(" ") % item.localPath();
         if( item.isDir() )
@@ -508,6 +512,11 @@ void FileViewPerforcePlugin::diffAgainstRev( const QString& rev )
     m_operationCompletedMsg = i18nc ( "@info:status", "Perforce diff compleet." ) ;
 
     m_pendingOperation = true;
+
+    // The 'p4' command needs to be executed from within the directory under perforce control,
+    // m_diffProcess.setWorkingDirectory(m_p4WorkingDir) does not work,
+    // using QDir::setCurrent(m_p4WorkingDir) works
+    QDir::setCurrent(m_p4WorkingDir);
     m_diffProcess.start( command );
 }
 
@@ -537,9 +546,7 @@ void FileViewPerforcePlugin::resolveConflict()
     m_operationCompletedMsg = i18nc ( "@info:status", "Launched Perforce Resolve." );
     m_errorMsg = i18nc ( "@info:status", "Launcing Perforce Resolve failed." );
 
-    bool res = KRun::runCommand( QLatin1String("cd ") % KShell::quoteArg(m_p4WorkingDir) % QLatin1String(";") %  // p4vc does not respect KRun working directory
-                                 QLatin1String("p4vc resolve ") % files,
-                                 "p4vc", QString(), 0);
+    bool res = KRun::runCommand( QLatin1String("p4vc resolve ") % files, 0, m_p4WorkingDir );
 
     if ( res )
     {
@@ -560,9 +567,7 @@ void FileViewPerforcePlugin::timelapsview()
     m_operationCompletedMsg = i18nc ( "@info:status", "Launched Perforce Timelapsview." );
     m_errorMsg = i18nc ( "@info:status", "Launcing Perforce Timelapsview failed." );
 
-    bool res = KRun::runCommand( QLatin1String("cd ") % KShell::quoteArg(m_p4WorkingDir) % QLatin1String(";") %  // p4vc does not respect KRun working directory
-                                 QLatin1String("p4vc timelapseview ") % KShell::quoteArg(path),
-                                 "p4vc", QString(), 0);
+    bool res = KRun::runCommand( QLatin1String("p4vc timelapseview ") % KShell::quoteArg(path), 0, m_p4WorkingDir );
 
     if ( res )
     {
@@ -589,9 +594,9 @@ void FileViewPerforcePlugin::showInP4V()
     //     P4PORT=localhost:1666 (config)
     //     P4USER=user
     // sed are used to filter the output and export the variabels P4CLIENT, P4PORT, and P4USER
-    bool res = KRun::runCommand( QLatin1String("`p4 -d\"")  % m_p4WorkingDir % QLatin1String("\" set | sed -n 's/\\(^P4[^=]*=[^ ]*\\).*/export \\1/p'`;") %
+    bool res = KRun::runCommand( QLatin1String("`p4 set | sed -n 's/\\(^P4[^=]*=[^ ]*\\).*/export \\1/p'`;") %
                                  QLatin1String("p4v -p ${P4PORT} -c ${P4CLIENT} -u ${P4USER} -s ") % KShell::quoteArg(path),
-                                 "p4v", QString(), 0);
+                                 "p4v", QString(), 0, QByteArray(), m_p4WorkingDir );
 
     if ( res )
     {
@@ -669,8 +674,7 @@ void FileViewPerforcePlugin::startPerforceCommandProcess()
 
     const QString program ( QLatin1String ( "p4" ) );
     QStringList arguments;
-    arguments << QLatin1String ( "-d" ) << m_p4WorkingDir
-              << m_command << m_arguments;
+    arguments << m_command << m_arguments;
 
     const KFileItem item = m_contextItems.takeLast();
     if ( item.isDir() ) {
@@ -681,6 +685,10 @@ void FileViewPerforcePlugin::startPerforceCommandProcess()
     // the remaining items of m_contextItems will be executed
     // after the process has finished (see slotOperationCompleted())
 
+    // The 'p4' command needs to be executed from within the directory under perforce control,
+    // m_process.setWorkingDirectory(m_p4WorkingDir) does not work,
+    // using QDir::setCurrent(m_p4WorkingDir) works
+    QDir::setCurrent(m_p4WorkingDir);
     m_process.start ( program, arguments );
 }
 
