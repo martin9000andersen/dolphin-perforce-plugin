@@ -363,47 +363,53 @@ QList<QAction*> FileViewPerforcePlugin::actions ( const KFileItemList& items ) c
     }
 
     const bool noPendingOperation = !m_pendingOperation;
-    if ( noPendingOperation ) {
-        // iterate all items and check the version to know which
-        // actions can be enabled
-        const int itemsCount = items.count();
-        int versionedCount = 0;
-        int editingCount = 0;
-        int diffableAgainstHeadRev = 0;
-        int diffableAgainstHaveRev = 0;
-        int conflictCount = 0;
-        int dirCount = 0;
-        foreach ( const KFileItem& item, items ) {
-            const ItemVersion version = itemVersion ( item );
-            if ( version != UnversionedVersion ) {
-                ++versionedCount;
-            }
-            if ( item.isDir() ) {
-                ++dirCount;
-            }
 
-            switch ( version ) {
-            case LocallyModifiedVersion:
-                ++editingCount;
-                ++diffableAgainstHaveRev;
-                break;
-            case AddedVersion:
-            case RemovedVersion:
-                ++editingCount;
-                break;
-            case ConflictingVersion:
-                ++editingCount;
-                ++diffableAgainstHaveRev;
-                ++diffableAgainstHeadRev;
-                ++conflictCount;
-                break;
-            case UpdateRequiredVersion:
-                ++diffableAgainstHeadRev;
-                break;
-            default:
+    // iterate all items and check the version to know which
+    // actions can be enabled
+    const int itemsCount = items.count();
+    int versionedCount = 0;
+    int editingCount = 0;
+    int diffableAgainstHeadRev = 0;
+    int diffableAgainstHaveRev = 0;
+    int conflictCount = 0;
+    int dirCount = 0;
+    foreach ( const KFileItem& item, items ) {
+        const ItemVersion version = itemVersion ( item );
+        if ( version != UnversionedVersion ) {
+            ++versionedCount;
+            if( !noPendingOperation )
+            {
                 break;
             }
         }
+        if ( item.isDir() ) {
+            ++dirCount;
+        }
+
+        switch ( version ) {
+        case LocallyModifiedVersion:
+            ++editingCount;
+            ++diffableAgainstHaveRev;
+            break;
+        case AddedVersion:
+        case RemovedVersion:
+            ++editingCount;
+            break;
+        case ConflictingVersion:
+            ++editingCount;
+            ++diffableAgainstHaveRev;
+            ++diffableAgainstHeadRev;
+            ++conflictCount;
+            break;
+        case UpdateRequiredVersion:
+            ++diffableAgainstHeadRev;
+            break;
+        default:
+            break;
+        }
+    }
+
+    if ( noPendingOperation ) {
         m_revertAction->setEnabled ( editingCount > 0 );
         m_revertUnchangedAction->setEnabled ( editingCount > 0 );
         m_diffActionHaveRev->setEnabled ( diffableAgainstHaveRev > 0 );
@@ -431,18 +437,26 @@ QList<QAction*> FileViewPerforcePlugin::actions ( const KFileItemList& items ) c
     m_updateAction->setEnabled ( noPendingOperation );
 
     QList<QAction*> actions;
-    actions.append ( m_openForEditAction );
-    actions.append ( m_updateAction );
-    actions.append ( m_addAction );
-    actions.append ( m_removeAction );
-    actions.append ( m_revertAction );
-    actions.append ( m_revertUnchangedAction );
-    actions.append ( m_diffActionHaveRev );
-    actions.append ( m_diffActionHeadRev );
-    actions.append ( m_resolveAction );
-    actions.append ( m_timelapsviewAction );
-    actions.append ( m_showInP4VAction );
-    actions.append ( m_submitAction );
+    if( versionedCount>0 )
+    {
+        actions.append ( m_openForEditAction );
+        actions.append ( m_updateAction );
+        actions.append ( m_addAction );
+        actions.append ( m_removeAction );
+        actions.append ( m_revertAction );
+        actions.append ( m_revertUnchangedAction );
+        actions.append ( m_diffActionHaveRev );
+        actions.append ( m_diffActionHeadRev );
+        actions.append ( m_resolveAction );
+        actions.append ( m_timelapsviewAction );
+        actions.append ( m_showInP4VAction );
+        actions.append ( m_submitAction );
+    }
+    else
+    {
+        actions.append ( m_updateAction );
+        actions.append ( m_addAction );
+    }
 
     return actions;
 }
