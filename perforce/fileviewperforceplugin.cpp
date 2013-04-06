@@ -165,8 +165,8 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
     QDir::setCurrent(m_p4WorkingDir);
     process.start ( "p4"
                     " fstat"
-                    " -T\"clientFile,movedRev,headRev,haveRev,action,unresolved\""
-                    " -F\"haveRev|(^haveRev&^(headAction=delete|headAction=move/delete|headAction=purge))\""
+                    " -T clientFile,movedRev,headRev,haveRev,action,unresolved"
+                    " -F haveRev|(^haveRev&^(headAction=delete|headAction=move/delete|headAction=purge))"
                     " ..." );
 
     // The output of this command consists of blocks of up till 5 lines separated by a blank line.
