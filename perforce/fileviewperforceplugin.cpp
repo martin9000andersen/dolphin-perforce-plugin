@@ -493,14 +493,16 @@ void FileViewPerforcePlugin::revertUnchangedFiles()
 
 void FileViewPerforcePlugin::diffAgainstRev( const QString& rev )
 {
-    QString command = QLatin1String("p4 diff -du");
+    QStringList arguments;
+    arguments << "diff" << "-du";
     foreach ( const KFileItem& item, m_contextItems ) {
-        command += QLatin1String(" ") % item.localPath();
+        QString str = item.localPath();
         if( item.isDir() )
         {
-            command += "/...";
+            str += "/...";
         }
-        command += QLatin1String("#") % rev;
+        str += QLatin1String("#") % rev;
+        arguments << str;
     }
     m_contextItems.clear();
 
@@ -517,7 +519,7 @@ void FileViewPerforcePlugin::diffAgainstRev( const QString& rev )
     // m_diffProcess.setWorkingDirectory(m_p4WorkingDir) does not work,
     // using QDir::setCurrent(m_p4WorkingDir) works
     QDir::setCurrent(m_p4WorkingDir);
-    m_diffProcess.start( command );
+    m_diffProcess.start( "p4", arguments );
 }
 
 void FileViewPerforcePlugin::diffAgainstHaveRev()
