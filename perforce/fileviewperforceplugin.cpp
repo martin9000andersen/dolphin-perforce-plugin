@@ -165,10 +165,7 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
     m_p4WorkingDir = directory;
 
     QProcess process;
-    // The 'p4' command needs to be executed from within the directory under perforce control,
-    // process.setWorkingDirectory(m_p4WorkingDir) does not work,
-    // using QDir::setCurrent(m_p4WorkingDir) works
-    QDir::setCurrent(m_p4WorkingDir);
+    process.setWorkingDirectory(m_p4WorkingDir);
     process.start ( "p4"
                     " fstat"
                     " -T clientFile,movedRev,headRev,haveRev,action,unresolved"
@@ -538,10 +535,7 @@ void FileViewPerforcePlugin::diffAgainstRev( const QString& rev )
 
     m_pendingOperation = true;
 
-    // The 'p4' command needs to be executed from within the directory under perforce control,
-    // m_diffProcess.setWorkingDirectory(m_p4WorkingDir) does not work,
-    // using QDir::setCurrent(m_p4WorkingDir) works
-    QDir::setCurrent(m_p4WorkingDir);
+    m_diffProcess.setWorkingDirectory(m_p4WorkingDir);
     m_diffProcess.start( "p4", arguments );
 }
 
@@ -739,10 +733,7 @@ void FileViewPerforcePlugin::startPerforceCommandProcess()
     // the remaining items of m_contextItems will be executed
     // after the process has finished (see slotOperationCompleted())
 
-    // The 'p4' command needs to be executed from within the directory under perforce control,
-    // m_process.setWorkingDirectory(m_p4WorkingDir) does not work,
-    // using QDir::setCurrent(m_p4WorkingDir) works
-    QDir::setCurrent(m_p4WorkingDir);
+    m_process.setWorkingDirectory(m_p4WorkingDir);
     m_process.start ( program, arguments );
 }
 
