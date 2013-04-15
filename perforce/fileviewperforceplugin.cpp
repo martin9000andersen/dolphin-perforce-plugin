@@ -283,7 +283,7 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
     }
 
     if ( ( process.exitCode() != 0 || process.exitStatus() != QProcess::NormalExit ) ) {
-        emit errorMessage ( QLatin1String ( "p4 error: " ) + process.errorString() );
+        emit errorMessage ( QLatin1String ( "p4 error: " ) + process.readAllStandardError() );
         return false;
     }
     return true;
