@@ -17,6 +17,25 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA            *
  ***************************************************************************/
 
+// NOTE: the perforce programs (p4, p4v, and p4vc) does not handle NIX symlink
+// From http://kb.perforce.com/UserTasks/ConfiguringP4/SymbolicLinks
+//      'If you have symbolic links in your UNIX filesystem and your client
+//       view is in a symlinked directory, you might get "not in client view"'
+// This means if the Perforce client root are pointing at a symlink the 'p4'
+// command must be called with PWD set to that symlink, the canonical file
+// path will not work. And the same goes the other way around, if the client
+// root  points at the canonical file path the p4 client does not accept beeing
+// executed with PWD set to a symlink.
+// As of KDE 4.8.5 both QProcess::setWorkingDirectory() and KRun::runCommand()
+// auto resolve the working directory to the canonical file path. This means
+// that a perforce client created on a symlink will not work without explicit
+// setting PWD.
+// In this plugin it is decided not to support perforce clients created on a
+// symlink. However if the Perforce client are created on the canonical file
+// path any symlink will be accepted, this is implemented using
+// QFileInfo::canonicalFilePath()
+// (A final note: the program 'p4v' does not accept relative file paths)
+
 #include "fileviewperforceplugin.h"
 
 #include <kaction.h>
@@ -162,7 +181,7 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
 
     m_versionInfoHash.clear();
     m_versionInfoHashDir.clear();
-    m_p4WorkingDir = directory;
+    m_p4WorkingDir = QFileInfo(directory).canonicalFilePath();
 
     QProcess process;
     process.setWorkingDirectory(m_p4WorkingDir);
@@ -283,7 +302,12 @@ bool FileViewPerforcePlugin::beginRetrieval ( const QString& directory )
     }
 
     if ( ( process.exitCode() != 0 || process.exitStatus() != QProcess::NormalExit ) ) {
-        emit errorMessage ( QLatin1String ( "p4 error: " ) + process.readAllStandardError() );
+        QString str(process.readAllStandardError());
+        if( str.contains("is not under client", Qt::CaseInsensitive) )
+        {
+            str.append("Please ensure that the 'client root' points at the canonical file path, not a symlink.");
+        }
+        emit errorMessage ( QLatin1String ( "P4 error: " ) + str );
         return false;
     }
     return true;
@@ -338,7 +362,7 @@ void FileViewPerforcePlugin::endRetrieval()
 
 KVersionControlPlugin2::ItemVersion FileViewPerforcePlugin::itemVersion ( const KFileItem& item ) const
 {
-    const QString itemUrl = item.localPath();
+    const QString itemUrl = QFileInfo(item.localPath()).canonicalFilePath();
 
     QHash<QString, ItemVersion>::const_iterator it = m_versionInfoHash.find ( itemUrl );
     if ( it != m_versionInfoHash.end() ) {
@@ -516,7 +540,7 @@ void FileViewPerforcePlugin::diffAgainstRev( const QString& rev )
     QStringList arguments;
     arguments << "diff" << "-du";
     foreach ( const KFileItem& item, m_contextItems ) {
-        QString str = item.localPath();
+        QString str = QFileInfo(item.localPath()).canonicalFilePath();
         if( item.isDir() )
         {
             str += "/...";
@@ -553,7 +577,7 @@ void FileViewPerforcePlugin::resolveConflict()
 {
     QString files;
     foreach ( const KFileItem& item, m_contextItems ) {
-        files += QLatin1String(" ") % KShell::quoteArg(item.localPath());
+        files += QLatin1String(" ") % KShell::quoteArg(QFileInfo(item.localPath()).canonicalFilePath());
         if( item.isDir() )
         {
             files += "/...";
@@ -579,7 +603,7 @@ void FileViewPerforcePlugin::resolveConflict()
 
 void FileViewPerforcePlugin::timelapsview()
 {
-    QString path = m_contextItems.first().localPath(); // only one specified
+    QString path = QFileInfo(m_contextItems.first().localPath()).canonicalFilePath(); // only one specified
     m_contextItems.clear();
 
     emit infoMessage ( i18nc ( "@info:status", "Launcing Perforce Timelapsview..." ) ); //TODO: space in filename...
@@ -600,7 +624,7 @@ void FileViewPerforcePlugin::timelapsview()
 
 void FileViewPerforcePlugin::showInP4V()
 {
-    QString path = m_contextItems.first().localPath(); // only one specified
+    QString path = QFileInfo(m_contextItems.first().localPath()).canonicalFilePath(); // only one specified
     m_contextItems.clear();
 
     emit infoMessage ( i18nc ( "@info:status", "Launcing P4V..." ) );
@@ -629,7 +653,7 @@ void FileViewPerforcePlugin::showInP4V()
 
 void FileViewPerforcePlugin::submit()
 {
-    QString path = m_contextItems.first().localPath(); // only one specified
+    QString path = QFileInfo(m_contextItems.first().localPath()).canonicalFilePath(); // only one specified
     m_contextItems.clear();
 
     emit infoMessage ( i18nc ( "@info:status", "Launcing P4V submit..." ) );
@@ -726,9 +750,9 @@ void FileViewPerforcePlugin::startPerforceCommandProcess()
 
     const KFileItem item = m_contextItems.takeLast();
     if ( item.isDir() ) {
-        arguments << item.localPath().append ( "/..." ); // append '...' to make the operation recursive
+        arguments << QFileInfo(item.localPath()).canonicalFilePath().append ( "/..." ); // append '...' to make the operation recursive
     } else {
-        arguments << item.localPath();
+        arguments << QFileInfo(item.localPath()).canonicalFilePath();
     }
     // the remaining items of m_contextItems will be executed
     // after the process has finished (see slotOperationCompleted())

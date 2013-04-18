@@ -16,6 +16,7 @@ The user needs to ensure that the environment variable P4CONFIG is set and that 
 
 The user needs to ensure that P4DIFF is not set inside the P4CONFIG file
 
+Perforce clients with "client root" pointing at a symlink will not work. The user must point the perforce "client root" to the canonical file path (it might also work to have the canonical file path configuret as "alternative root"). Sorry for the inconvienence, but UNIX symlinks are known to cause problems for Perforce see e.g. http://kb.perforce.com/UserTasks/ConfiguringP4/SymbolicLinks.
 
 Installation
 ============
